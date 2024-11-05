@@ -23,6 +23,34 @@ Dieses PsychoPy-Experiment untersucht, wie Menschen neue Wörter (Neologismen) l
    - `texts/ui.md`
    - `stimuli/words.csv`
 
+### 📝 Anpassen der Experiment-Texte
+
+Die Texte des Experiments können Sie in den Markdown-Dateien im `texts/`-Ordner anpassen:
+
+- `texts/instructions.md`: Enthält alle Experimentanweisungen und Erklärungen
+- `texts/ui.md`: Enthält die UI-Textelemente wie Buttons und Beschriftungen
+
+Zum Bearbeiten dieser Dateien benötigen Sie einen Markdown-Editor. Hier einige empfohlene Optionen:
+
+1. **[MarkText](https://www.marktext.cc/)**
+   - Benutzerfreundliche Oberfläche
+   - Live-Vorschau der Formatierung
+   - Verfügbar für Windows, Mac und Linux
+2. **[Notepad++]([Downloads | Notepad&#43;&#43;](https://notepad-plus-plus.org/downloads/))**
+   - Mit Markdown-Plugin nutzbar
+   - Leichtgewichtig und schnell
+   - Gute Option für einfache Textbearbeitung
+3. **Online-Editor**
+   - StackEdit ([stackedit.io]([StackEdit](https://stackedit.io/app#)))
+   - Keine Installation notwendig
+
+**Wichtige Hinweise zur Textbearbeitung:**
+
+- Behalten Sie die Markdown-Syntax bei
+- Testen Sie die Änderungen vor dem eigentlichen Experiment
+- Erstellen Sie Backups der originalen Dateien
+- Die Änderungen werden beim nächsten Experimentstart automatisch übernommen
+
 ## 🚀 Experiment durchführen
 
 1. Starten Sie StandalonePsychoPy
