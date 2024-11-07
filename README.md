@@ -63,19 +63,16 @@ Zum Bearbeiten dieser Dateien benötigen Sie einen Markdown-Editor. Hier einige 
 
 ## 📊 Experimentablauf
 
-1. Sprache auswählen:
-   - Deutsch (de)
-   - Englisch (eng)
-
-2. Experimenteinstellungen konfigurieren:
+1. Sprache und Wortanzahl auswählen:
+   - Sprache: Deutsch (de) oder Englisch (eng)
    - Anzahl der zu testenden Wörter
 
-3. Teilnehmerinformationen eingeben:
+2. Teilnehmerinformationen eingeben:
    - Name/ID
    - Alter
    - Geschlecht (m/w/d)
 
-4. Für jedes Wort:
+3. Für jedes Wort:
    - Definition lesen (erscheint zufällig vor oder nach dem Wort)
    - Wort 5-mal exakt eintippen
 
@@ -124,16 +121,21 @@ Diese Daten ermöglichen Analysen von:
 
 ```
 neologismen-experiment/
-├── experiment.py            # Haupt-Experiment-Skript
+├── experiment.py            # Haupt-Experiment-Skript (Einstiegspunkt)
+├── src/                    # Quellcode-Module
+│   ├── config.py          # Konfigurationsklassen
+│   ├── input_handler.py   # Eingabebehandlung und Logging
+│   ├── ui.py             # UI-Komponenten und Text-Handling
+│   └── experiment_core.py # Hauptexperimentlogik
 ├── texts/                  # Experiment-Textinhalte
 │   ├── de_instructions.md  # Deutsche Experimentanweisungen
 │   ├── eng_instructions.md # Englische Experimentanweisungen
 │   ├── de_ui.md           # Deutsche UI-Textelemente
 │   └── eng_ui.md          # Englische UI-Textelemente
-├── stimuli/
+├── stimuli/                # Stimulus-Dateien
 │   ├── de_words.csv       # Deutsche Stimulusliste
 │   └── eng_words.csv      # Englische Stimulusliste
-└── data/                  # Gespeicherte Experimentdaten
+└── data/                   # Gespeicherte Experimentdaten
     └── YYYY-MM-DD/        # Datumsspezifische Ergebnisse
 ```
 
@@ -144,6 +146,21 @@ neologismen-experiment/
   ```bash
   pip install psychopy pandas
   ```
+
+## 🔧 Code-Organisation
+
+Der Code ist in logische Module aufgeteilt:
+
+- `experiment.py`: Schlanker Einstiegspunkt zum Starten des Experiments
+- `src/config.py`: Konfigurationsklassen für Experiment- und Teilnehmereinstellungen
+- `src/input_handler.py`: Verarbeitung und Logging von Tastatureingaben
+- `src/ui.py`: UI-Komponenten, Fenster-Management und Text-Handling
+- `src/experiment_core.py`: Hauptexperimentlogik und Ablaufsteuerung
+
+Diese modulare Struktur macht den Code:
+- Übersichtlicher und leichter zu warten
+- Besser testbar durch klare Trennung der Verantwortlichkeiten
+- Einfacher zu erweitern durch lose Kopplung der Komponenten
 
 ## 🛡️ Fehlerbehandlung
 
