@@ -1,12 +1,12 @@
 # 🧪 Neologismen-Experiment
 
-Ein PsychoPy-Experiment zur Untersuchung der Verarbeitung von Neologismen (neuartigen Wörtern).
+Ein PsychoPy-Experiment zur Untersuchung der Verarbeitung von Neologismen (neuartigen Wörtern) in verschiedenen Sprachen.
 
 # 📚 Nutzer:innen-Dokumentation (ohne Programmierkenntnisse)
 
 ## ✨ Über das Experiment
 
-Dieses PsychoPy-Experiment untersucht, wie Menschen neue Wörter (Neologismen) lernen und verarbeiten. Die Teilnehmenden sehen Neologismen mit ihren semantischen Definitionen und tippen diese mehrmals ab. Dabei werden verschiedene Leistungsmerkmale automatisch erfasst, um den Lernprozess zu analysieren.
+Dieses PsychoPy-Experiment untersucht, wie Menschen neue Wörter (Neologismen) lernen und verarbeiten. Die Teilnehmenden sehen Neologismen mit ihren semantischen Definitionen und tippen diese mehrmals ab. Das Experiment erfasst detaillierte Daten auf Tastendruck-Ebene, um das Tippverhalten genau zu analysieren.
 
 ## 🛠️ Installation & Voraussetzungen
 
@@ -19,16 +19,19 @@ Dieses PsychoPy-Experiment untersucht, wie Menschen neue Wörter (Neologismen) l
 
 3. Stellen Sie sicher, dass alle Dateien vorhanden sind:
    
-   - `texts/instructions.md`
-   - `texts/ui.md`
-   - `stimuli/words.csv`
+   - `texts/de_instructions.md` (Deutsche Anleitungen)
+   - `texts/eng_instructions.md` (Englische Anleitungen)
+   - `texts/de_ui.md` (Deutsche UI-Texte)
+   - `texts/eng_ui.md` (Englische UI-Texte)
+   - `stimuli/de_words.csv` (Deutsche Wörter)
+   - `stimuli/eng_words.csv` (Englische Wörter)
 
 ### 📝 Anpassen der Experiment-Texte
 
-Die Texte des Experiments können Sie in den Markdown-Dateien im `texts/`-Ordner anpassen:
+Die Texte des Experiments können Sie in den Markdown-Dateien im `texts/`-Ordner anpassen. Für jede unterstützte Sprache gibt es separate Dateien:
 
-- `texts/instructions.md`: Enthält alle Experimentanweisungen und Erklärungen
-- `texts/ui.md`: Enthält die UI-Textelemente wie Buttons und Beschriftungen
+- `texts/{sprache}_instructions.md`: Enthält alle Experimentanweisungen und Erklärungen
+- `texts/{sprache}_ui.md`: Enthält die UI-Textelemente wie Buttons und Beschriftungen
 
 Zum Bearbeiten dieser Dateien benötigen Sie einen Markdown-Editor. Hier einige empfohlene Optionen:
 
@@ -60,48 +63,58 @@ Zum Bearbeiten dieser Dateien benötigen Sie einen Markdown-Editor. Hier einige 
 
 ## 📊 Experimentablauf
 
-1. Experimenteinstellungen konfigurieren:
-   
-   - Anzahl der zu testenden Wörter
-   - Farbfeedback-Präferenz (ja/nein)
+1. Sprache auswählen:
+   - Deutsch (de)
+   - Englisch (eng)
 
-2. Teilnehmerinformationen eingeben:
-   
+2. Experimenteinstellungen konfigurieren:
+   - Anzahl der zu testenden Wörter
+
+3. Teilnehmerinformationen eingeben:
    - Name/ID
    - Alter
    - Geschlecht (m/w/d)
 
-3. Für jedes Wort:
-   
+4. Für jedes Wort:
    - Definition lesen (erscheint zufällig vor oder nach dem Wort)
    - Wort 5-mal exakt eintippen
-   - Feedback zur Genauigkeit erhalten
-
-## 💡 Best Practices für Experimentdurchführung
-
-1. 🧪 Führen Sie eine Testsitzung durch
-   
-   - Testen Sie den kompletten Ablauf
-   - Machen Sie sich mit der Bedienung vertraut
-
-2. 📋 Vor dem Experiment:
-   
-   - Überprüfen Sie die Stimulusliste (words.csv)
-   - Testen Sie das Tastaturlayout
-   - Stellen Sie eine störungsfreie Umgebung sicher
-
-3. 💾 Während des Experiments:
-   
-   - Notieren Sie besondere Vorkommnisse
-   - Prüfen Sie regelmäßig die Datenspeicherung
 
 ## 📊 Daten & Ergebnisse
 
 Die Ergebnisdateien finden Sie im `data/`-Ordner:
 
-- Format: `YYYY-MM-DD_teilnehmer_name_typ_HHMM.csv`
-- Enthält alle Eingaben und Messwerte
-- Automatische Sicherung nach jedem Durchgang
+Format: `YYYY-MM-DD/YYYY-MM-DD_participant_name_typ_HHMM.csv`
+
+### Erfasste Daten
+
+#### Versuchsspezifische Daten:
+- `attempt`: Nummer des Versuchs (1-5, da jedes Wort 5 Mal getippt wird)
+- `word`: Das Zielwort, das abgetippt werden soll
+- `definition_position`: Position der Definition ("before"/"after")
+
+#### Eingabedaten:
+- `input`: Die aktuelle Gesamteingabe des Benutzers
+- `char`: Der einzelne eingegebene Buchstabe (oder "backspace" bei Löschung)
+- `correct`: Ob der eingegebene Buchstabe an der richtigen Position korrekt ist
+- `time`: Zeit (in Sekunden) für die Eingabe des Buchstabens
+
+#### Wortklassifikation:
+- `class`: Klasse des Wortes
+  - "blending" (Wortmischungen)
+  - "compound" (Zusammensetzungen)
+  - "derivation" (Ableitungen)
+- `newness`: "new" (neu) oder "old" (etabliert)
+
+#### Teilnehmerdaten:
+- `name`: Name des Teilnehmers
+- `language`: Gewählte Sprache
+- `age`: Alter des Teilnehmers
+
+Diese Daten ermöglichen Analysen von:
+- Tippgeschwindigkeit pro Buchstabe
+- Fehlermustern auf Buchstabenebene
+- Korrekturen während des Tippens
+- Zeitlichen Mustern im Tippverhalten
 
 ---
 
@@ -111,98 +124,39 @@ Die Ergebnisdateien finden Sie im `data/`-Ordner:
 
 ```
 neologismen-experiment/
-├── experiment.py        # Haupt-Experiment-Skript
-├── texts/              # Experiment-Textinhalte
-│   ├── instructions.md # Experimentanweisungen
-│   └── ui.md          # UI-Textelemente
+├── experiment.py            # Haupt-Experiment-Skript
+├── texts/                  # Experiment-Textinhalte
+│   ├── de_instructions.md  # Deutsche Experimentanweisungen
+│   ├── eng_instructions.md # Englische Experimentanweisungen
+│   ├── de_ui.md           # Deutsche UI-Textelemente
+│   └── eng_ui.md          # Englische UI-Textelemente
 ├── stimuli/
-│   └── words.csv      # Stimulusliste
-└── data/              # Gespeicherte Experimentdaten
+│   ├── de_words.csv       # Deutsche Stimulusliste
+│   └── eng_words.csv      # Englische Stimulusliste
+└── data/                  # Gespeicherte Experimentdaten
+    └── YYYY-MM-DD/        # Datumsspezifische Ergebnisse
 ```
 
 ## ⚙️ Technische Voraussetzungen
 
 - Python 3.8 oder 3.10
-
 - Erforderliche Pakete:
-  
   ```bash
   pip install psychopy pandas
   ```
 
-## 📊 Datenformat
-
-Die CSV-Ausgabedateien enthalten:
-
-- `trial_nummer`: Fortlaufende Nummer des Wortdurchgangs
-- `versuch_nummer`: Nummer des Versuchs (1-5) pro Wort
-- `zielwort`: Zu tippendes Wort
-- `eingabe`: Tatsächliche Eingabe
-- `tippgenauigkeit`: Prozentuale Genauigkeit
-- `case_correct`: Korrektheit der Groß-/Kleinschreibung
-- `reaktionszeit`: Zeit bis zur Bestätigung
-- `wortklasse`: Grammatikalische Klasse
-- `neuheitswert`: Eingeschätzter Neuheitswert
-- `definition_position`: Position der Definition
-- `teilnehmer_daten`: Demografische Informationen
-
 ## 🛡️ Fehlerbehandlung
 
 Implementierte Sicherheitsfunktionen:
-
 - Automatische Verzeichniserstellung
-- Regelmäßige Datensicherung
 - Kontrollierte Experimentbeendigung
-- Backup-System bei Abstürzen
-
-## 🎨 Visuelle Anpassungen
-
-Anpassbare Parameter in `experiment.py`:
-
-1. Fenstereinstellungen:
-   
-   ```python
-   def _create_window(self):
-       return visual.Window(
-           size=(1024, 768),
-           fullscr=True,
-           color='black',
-           units='height'
-       )
-   ```
-
-2. Textstyling:
-   
-   ```python
-   self.stims = {
-       'word': visual.TextStim(self.win, height=0.1, color='white'),
-       'instruction': visual.TextStim(self.win, height=0.05, wrapWidth=1.5)
-   }
-   ```
-
-3. Zeitparameter:
-   
-   ```python
-   core.wait(1)  # Feedback-Anzeigedauer
-   self.show_text(trial['definition'], 3)  # Definitions-Anzeigedauer
-   ```
-
-## 📚 Code-Dokumentation
-
-Der Code enthält:
-
-- Ausführliche Docstrings
-- Typ-Annotationen
-- Klare Strukturierung
-- Umfassende Fehlerbehandlung
-- Konsistente Namenskonventionen
+- Datensicherung bei Abbruch
 
 ## 🤝 Lizenz & Mitwirken
 
 Dieses Projekt steht unter der MIT-Lizenz - siehe [LICENSE](LICENSE) Datei für Details.
 
 Das bedeutet, Sie dürfen:
-
 - ✅ Den Code kommerziell und privat nutzen
 - ✅ Den Code modifizieren und anpassen
 - ✅ Den Code verteilen

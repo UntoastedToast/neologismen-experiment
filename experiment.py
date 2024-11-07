@@ -9,73 +9,142 @@ Requirements:
     - psychopy
     - pandas
     - External files:
-        - texts/instructions.md: Experiment instructions
-        - texts/ui.md: UI text elements
-        - stimuli/words.csv: Stimulus words and definitions
-
-Project Structure:
-    - data/: Experiment results (created automatically)
-    - texts/: Text content in markdown format
-    - stimuli/: Stimulus materials
+        - texts/{lang}_instructions.md: Experiment instructions
+        - texts/{lang}_ui.md: UI text elements
+        - stimuli/{lang}_words.csv: Stimulus words and definitions
 """
 
+from __future__ import annotations  # For Python 3.8 compatibility with type hints
 from psychopy import visual, core, event, data, gui
 import pandas as pd
 import os
 from datetime import datetime
-from dataclasses import dataclass, asdict
-from typing import List, Dict, Optional
+from dataclasses import dataclass, field
+from typing import List, Dict, Optional, Tuple, Callable, Any, Union
 import random
+import logging
+from abc import ABC, abstractmethod
+
+@dataclass
+class ExperimentConfig:
+    """Configuration settings for the experiment."""
+    window_size: Tuple[int, int] = (1024, 768)
+    max_attempts: int = 5
+    instruction_sections: List[str] = field(default_factory=lambda: [
+        'Welcome', 'Task Introduction', 'Input Instructions',
+        'Definition Info', 'Controls', 'Exit Info'
+    ])
+    definition_display_time: float = 3.0
+    blink_interval: float = 0.5
 
 @dataclass
 class ParticipantInfo:
-    """
-    Data class to store participant information.
-    
-    Attributes:
-        name (str): Participant's name/identifier
-        age (str): Participant's age
-        gender (str): Participant's gender (m/w/d)
-        session_name (str): Session identifier (automatically set to current date)
-        word_count (str): Number of words to test ('all' or specific number)
-    """
+    """Data class to store participant information."""
     name: str
     age: str
     gender: str
     session_name: str
     word_count: str
+    language: str
+
+class InputHandler:
+    """Handles keyboard input processing and logging."""
+    
+    def __init__(self, keylog_data: List[Dict[str, Any]]):
+        self.keylog_data = keylog_data
+    
+    def process_key(self, key: str, rt: float, context: Dict[str, Any]) -> Tuple[str, int, float]:
+        """Process a single keypress and update logging data."""
+        typed_text = context['typed_text']
+        current_pos = context['current_pos']
+        last_keypress_time = context['last_keypress_time']
+        time_since_last = rt - last_keypress_time
+        
+        if key == 'backspace' and typed_text and current_pos > 0:
+            self._log_keypress(key, True, time_since_last, typed_text, context)
+            return typed_text[:-1], current_pos - 1, rt
+            
+        elif len(key) == 1:
+            expected_char = context['target_word'][current_pos].lower() if current_pos < len(context['target_word']) else ''
+            is_correct = key.lower() == expected_char.lower()
+            self._log_keypress(key, is_correct, time_since_last, typed_text, context)
+            return typed_text + key, current_pos + 1, rt
+            
+        return typed_text, current_pos, last_keypress_time
+    
+    def _log_keypress(self, key: str, is_correct: bool, time_since_last: float, 
+                     typed_text: str, context: Dict[str, Any]) -> None:
+        """Log a keypress with its context."""
+        self.keylog_data.append({
+            'attempt': context['attempt'],
+            'word': context['target_word'],
+            'definition_position': context['trial']['def_position'],
+            'input': typed_text,
+            'char': key,
+            'correct': is_correct,
+            'time': time_since_last,
+            'class': context['trial']['class'],
+            'newness': context['trial']['newness'],
+            'name': context['participant_info'].name,
+            'language': context['participant_info'].language,
+            'age': context['participant_info'].age
+        })
+
+class WindowFactory:
+    """Factory for creating PsychoPy windows with consistent settings."""
+    
+    @staticmethod
+    def create_window(config: ExperimentConfig) -> visual.Window:
+        """Create a new window with the specified configuration."""
+        return visual.Window(
+            size=config.window_size,
+            fullscr=True,
+            allowGUI=False,
+            color='black',
+            units='height'
+        )
 
 class NeologismenExperiment:
-    """
-    Main experiment class for studying the processing of neologisms.
+    """Main experiment class implementing the neologism typing task."""
     
-    This experiment presents participants with novel words (neologisms) and their definitions.
-    Participants must type each word exactly as shown, with the definition appearing either
-    before or after the word. Each word is presented 5 times to measure learning effects.
-    
-    The experiment uses external markdown files for all text content:
-    - texts/instructions.md: Contains all instruction texts
-    - texts/ui.md: Contains UI-related texts (buttons, labels, etc.)
-    """
-    
-    def __init__(self):
-        """
-        Initialize the experiment by:
-        1. Setting up the current date for session management
-        2. Loading text content from markdown files
-        3. Getting participant information
-        4. Loading stimuli
-        5. Creating the experiment window
-        6. Setting up visual stimuli
-        """
+    def __init__(self, config: Optional[ExperimentConfig] = None, 
+                 window_factory: Optional[WindowFactory] = None) -> None:
+        """Initialize the experiment with optional configuration and dependencies."""
+        self.config = config or ExperimentConfig()
         self.current_date = datetime.now().strftime("%Y-%m-%d")
+        self._setup_logging()
+        self._setup_directories()
+        
+        self.language = self._select_language()
         self._load_texts()
         self.participant_info = self._get_participant_info()
         self.trials = self._load_stimuli()
-        self.win = self._create_window()
-        self.all_responses = []
         
-        # Create all visual stimuli with consistent styling
+        self.window_factory = window_factory or WindowFactory()
+        self.win = self.window_factory.create_window(self.config)
+        self.keylog_data: List[Dict[str, Any]] = []
+        self.input_handler = InputHandler(self.keylog_data)
+        
+        self._setup_stimuli()
+
+    def _setup_logging(self) -> None:
+        """Configure the logging system."""
+        os.makedirs('logs', exist_ok=True)
+        logging.basicConfig(
+            filename=f'logs/{self.current_date}.log',
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s'
+        )
+    
+    def _setup_directories(self) -> None:
+        """Create necessary directories for data storage."""
+        self.data_dir = 'data'
+        os.makedirs(self.data_dir, exist_ok=True)
+        self.session_dir = os.path.join(self.data_dir, self.current_date)
+        os.makedirs(self.session_dir, exist_ok=True)
+    
+    def _setup_stimuli(self) -> None:
+        """Initialize visual stimuli with consistent settings."""
         self.stims = {
             'word': visual.TextStim(self.win, height=0.1, color='white'),
             'typed': visual.TextStim(self.win, pos=(0, -0.2), height=0.1, color='white'),
@@ -86,20 +155,26 @@ class NeologismenExperiment:
                 pos=(0, -0.4),
                 height=0.03,
                 color='lightgray'
-            ),
-            'feedback': visual.TextStim(self.win, pos=(0, -0.2), height=0.1, color='white')
+            )
         }
 
-    def _load_texts(self):
-        """
-        Load all text content from markdown files.
+    def _select_language(self) -> str:
+        """Display language selection dialog and return selected language."""
+        available_languages = []
+        for file in os.listdir('texts'):
+            if file.endswith('_instructions.md'):
+                lang = file.split('_')[0]
+                available_languages.append(lang)
         
-        This method reads structured markdown files and extracts specific sections
-        for use in the experiment. This allows non-technical users to modify
-        experiment texts without touching the code.
-        """
+        lang_info = {'language': available_languages}
+        dlg = gui.DlgFromDict(dictionary=lang_info, title='Select Language')
+        if not dlg.OK:
+            core.quit()
+        return lang_info['language']
+
+    def _load_texts(self) -> None:
+        """Load all text content from markdown files."""
         def read_md_section(filepath: str, section: str) -> str:
-            """Helper function to extract a specific section from a markdown file."""
             with open(filepath, 'r', encoding='utf-8') as f:
                 content = f.read()
             sections = content.split('##')
@@ -108,60 +183,37 @@ class NeologismenExperiment:
                     return s.split('\n', 1)[1].strip()
             return ""
 
-        # Load instruction texts in sequence
         self.instructions = []
-        instruction_sections = ['Welcome', 'Task Introduction', 'Input Instructions', 
-                              'Definition Info', 'Controls', 'Exit Info']
-        for section in instruction_sections:
-            text = read_md_section('texts/instructions.md', section)
+        for section in self.config.instruction_sections:
+            text = read_md_section(f'texts/{self.language}_instructions.md', section)
             self.instructions.append(text)
         
-        self.thank_you_text = read_md_section('texts/instructions.md', 'Thank You')
+        self.thank_you_text = read_md_section(f'texts/{self.language}_instructions.md', 'Thank You')
 
-        # Load UI texts with hierarchical structure
         self.ui_texts = {
-            'Continue Button': read_md_section('texts/ui.md', 'Continue Button'),
+            'Continue Button': read_md_section(f'texts/{self.language}_ui.md', 'Continue Button'),
             'Dialog Titles': {
-                'config': read_md_section('texts/ui.md', 'Experiment Config'),
-                'participant': read_md_section('texts/ui.md', 'Participant Info')
+                'config': read_md_section(f'texts/{self.language}_ui.md', 'Experiment Config'),
+                'participant': read_md_section(f'texts/{self.language}_ui.md', 'Participant Info')
             },
             'Dialog Labels': {
-                'word_count': read_md_section('texts/ui.md', 'Word Count'),
-                'color_feedback': read_md_section('texts/ui.md', 'Color Feedback'),
-                'name': read_md_section('texts/ui.md', 'Name'),
-                'age': read_md_section('texts/ui.md', 'Age'),
-                'gender': read_md_section('texts/ui.md', 'Gender')
+                'word_count': read_md_section(f'texts/{self.language}_ui.md', 'Word Count'),
+                'name': read_md_section(f'texts/{self.language}_ui.md', 'Name'),
+                'age': read_md_section(f'texts/{self.language}_ui.md', 'Age'),
+                'gender': read_md_section(f'texts/{self.language}_ui.md', 'Gender')
             }
         }
 
     def _get_participant_info(self) -> ParticipantInfo:
-        """
-        Display dialog boxes to collect participant information.
-        
-        Shows two sequential dialogs:
-        1. Experiment configuration (word count, feedback settings)
-        2. Participant demographics (name, age, gender)
-        
-        Returns:
-            ParticipantInfo: Collected participant information
-        """
+        """Display dialog boxes to collect participant information."""
         session_info = {
-            self.ui_texts['Dialog Labels']['word_count']: 'all',
-            self.ui_texts['Dialog Labels']['color_feedback']: ['Yes', 'No']
+            self.ui_texts['Dialog Labels']['word_count']: 'all'
         }
         
         if not gui.DlgFromDict(dictionary=session_info, 
                              title=self.ui_texts['Dialog Titles']['config'],
-                             order=[self.ui_texts['Dialog Labels']['word_count'], 
-                                   self.ui_texts['Dialog Labels']['color_feedback']]).OK:
+                             order=[self.ui_texts['Dialog Labels']['word_count']]).OK:
             core.quit()
-            
-        self.show_color_feedback = session_info[self.ui_texts['Dialog Labels']['color_feedback']] == 'Yes'
-
-        # Create session directory using current date
-        session_dir = os.path.join('data', self.current_date)
-        os.makedirs(session_dir, exist_ok=True)
-        self.session_dir = session_dir
 
         participant_info = {
             self.ui_texts['Dialog Labels']['name']: '',
@@ -181,20 +233,13 @@ class NeologismenExperiment:
             age=participant_info[self.ui_texts['Dialog Labels']['age']],
             gender=participant_info[self.ui_texts['Dialog Labels']['gender']],
             session_name=self.current_date,
-            word_count=session_info[self.ui_texts['Dialog Labels']['word_count']]
+            word_count=session_info[self.ui_texts['Dialog Labels']['word_count']],
+            language=self.language
         )
 
     def _load_stimuli(self) -> data.TrialHandler:
-        """
-        Load and prepare word stimuli for the experiment.
-        
-        Reads words from CSV, randomizes their order, and optionally limits
-        the number of words based on participant settings.
-        
-        Returns:
-            data.TrialHandler: Prepared trial sequence
-        """
-        stimuli = pd.read_csv('stimuli/words.csv')
+        """Load and prepare word stimuli for the experiment."""
+        stimuli = pd.read_csv(f'stimuli/{self.language}_words.csv')
         word_list = stimuli.to_dict('records')
         random.shuffle(word_list)
         
@@ -203,7 +248,7 @@ class NeologismenExperiment:
                 num_words = int(self.participant_info.word_count)
                 word_list = word_list[:num_words] if 0 < num_words <= len(word_list) else word_list
             except ValueError:
-                pass  # Use all words if invalid input
+                logging.warning(f"Invalid word count: {self.participant_info.word_count}")
         
         return data.TrialHandler(
             [{**word, 'def_position': random.choice(['before', 'after'])}
@@ -212,64 +257,24 @@ class NeologismenExperiment:
             method='random'
         )
 
-    def _create_window(self) -> visual.Window:
-        """
-        Create the experiment window with consistent settings.
-        
-        Returns:
-            visual.Window: Configured PsychoPy window
-        """
-        return visual.Window(
-            size=(1024, 768),
-            fullscr=True,
-            allowGUI=False,
-            color='black',
-            units='height'
-        )
-
-    def save_data(self, aborted: bool = False, intermediate: bool = False):
-        """
-        Save experiment data to CSV file.
-        
-        Args:
-            aborted (bool): Whether the experiment was aborted
-            intermediate (bool): Whether this is an intermediate save
-        """
+    def save_data(self, aborted: bool = False) -> None:
+        """Save experiment data to CSV file."""
         try:
             timestamp = datetime.now().strftime("%H%M")
-            
-            save_type = "intermediate" if intermediate else ("aborted" if aborted else "final")
+            save_type = "aborted" if aborted else "final"
             filename = f'{self.current_date}_participant_{self.participant_info.name}_{save_type}_{timestamp}.csv'
             
-            pd.DataFrame(self.all_responses).to_csv(
-                os.path.join(self.session_dir, filename), 
+            pd.DataFrame(self.keylog_data).to_csv(
+                os.path.join(self.session_dir, filename),
                 index=False
             )
-            
-            # Clean up intermediate files on final save
-            if not aborted and not intermediate:
-                search_pattern = f'{self.current_date}_participant_{self.participant_info.name}_intermediate'
-                for file in os.listdir(self.session_dir):
-                    if file.startswith(search_pattern):
-                        try:
-                            os.remove(os.path.join(self.session_dir, file))
-                        except Exception:
-                            pass
+            logging.info(f"Data saved successfully to {filename}")
                             
         except Exception as e:
-            print(f"Fehler beim Speichern der Daten: {e}")
+            logging.error(f"Error saving data: {e}")
 
     def show_text(self, text: str, duration: Optional[float] = None) -> bool:
-        """
-        Display text on screen with optional duration.
-        
-        Args:
-            text (str): Text to display
-            duration (float, optional): Display duration in seconds
-        
-        Returns:
-            bool: False if escaped, True otherwise
-        """
+        """Display text on screen with optional duration."""
         timer = core.CountdownTimer(duration) if duration else None
         continue_visible = True
         blink_timer = core.Clock()
@@ -278,7 +283,7 @@ class NeologismenExperiment:
             if event.getKeys(['escape']):
                 return False
                 
-            if blink_timer.getTime() >= 0.5:
+            if blink_timer.getTime() >= self.config.blink_interval:
                 continue_visible = not continue_visible
                 blink_timer.reset()
                 
@@ -297,41 +302,12 @@ class NeologismenExperiment:
             if not duration and event.getKeys(['space']):
                 return True
 
-    def calculate_typing_accuracy(self, target_word: str, typed_text: str) -> tuple[float, bool]:
-        """
-        Calculate typing accuracy and case correctness.
-        
-        Args:
-            target_word (str): The word to be typed
-            typed_text (str): The participant's input
-        
-        Returns:
-            tuple[float, bool]: (accuracy percentage, case correctness)
-        """
-        if not target_word or not typed_text:
-            return 0.0, False
-        if target_word == typed_text:
-            return 100.0, True
-            
-        correct = sum(a == b for a, b in zip(target_word, typed_text))
-        accuracy = (correct * 100.0) / max(len(target_word), len(typed_text))
-        return round(accuracy, 1), False
-
-    def run_single_input(self, target_word: str) -> tuple[str, dict]:
-        """
-        Handle a single word input trial.
-        
-        Displays the target word and handles keyboard input until Enter is pressed.
-        
-        Args:
-            target_word (str): The word to be typed
-        
-        Returns:
-            tuple[str, dict]: (typed text, trial results)
-        """
+    def run_single_input(self, target_word: str, attempt: int, trial: Dict[str, Any]) -> bool:
+        """Handle a single word input trial with keylogging."""
         typed_text = ''
-        shift_pressed = False
+        current_pos = 0
         input_clock = core.Clock()
+        last_keypress_time = input_clock.getTime()
         
         while True:
             self.stims['word'].text = target_word
@@ -343,113 +319,63 @@ class NeologismenExperiment:
             self.win.flip()
 
             if event.getKeys(['escape']):
-                return typed_text, {}
+                return False
 
             for key, rt in event.getKeys(timeStamped=input_clock):
-                if key in ['lshift', 'rshift']:
-                    shift_pressed = True
-                elif key in ['return', 'num_enter']:
-                    accuracy, case_correct = self.calculate_typing_accuracy(target_word, typed_text)
+                if key in ['return', 'num_enter']:
+                    return True
                     
-                    self.stims['feedback'].text = typed_text
-                    if self.show_color_feedback:
-                        self.stims['feedback'].color = (
-                            'green' if accuracy >= 90 and case_correct
-                            else 'yellow' if accuracy >= 70
-                            else 'red'
-                        )
-                    else:
-                        self.stims['feedback'].color = 'white'
-                    self.stims['feedback'].draw()
-                    self.win.flip()
-                    
-                    core.wait(1)  # Show feedback
-                    
-                    return typed_text, {
-                        'typed_text': typed_text,
-                        'tippgenauigkeit': accuracy,
-                        'case_correct': case_correct,
-                        'rt': rt
-                    }
-                elif key == 'backspace':
-                    typed_text = typed_text[:-1]
-                elif len(key) == 1:
-                    typed_text += key.upper() if shift_pressed else key
-                    shift_pressed = False
-
-    def run_trial(self, trial: Dict) -> None:
-        """
-        Run a complete trial including definition and 5 input attempts.
-        
-        Args:
-            trial (Dict): Trial information including word and definition
-        
-        Returns:
-            bool: False if escaped, True otherwise
-        """
-        if trial['def_position'] == 'before':
-            self.show_text(trial['definition'], 3)
-
-        trial_number = len(self.all_responses) // 5 + 1
-        
-        for attempt in range(1, 6):
-            typed_text, result = self.run_single_input(trial['word'])
-            if not result:  # Escape was pressed
-                return False
+                context = {
+                    'typed_text': typed_text,
+                    'current_pos': current_pos,
+                    'last_keypress_time': last_keypress_time,
+                    'target_word': target_word,
+                    'trial': trial,
+                    'attempt': attempt,
+                    'participant_info': self.participant_info
+                }
                 
-            self.all_responses.append({
-                'trial_nummer': trial_number,
-                'versuch_nummer': attempt,
-                'zielwort': trial['word'],
-                'eingabe': typed_text,
-                'tippgenauigkeit': result['tippgenauigkeit'],
-                'case_correct': result['case_correct'],
-                'reaktionszeit': result['rt'],
-                'wortklasse': trial['class'],
-                'neuheitswert': trial['newness'],
-                'definition_position': trial['def_position'],
-                'teilnehmer_alter': self.participant_info.age,
-                'teilnehmer_geschlecht': self.participant_info.gender,
-                'name': self.participant_info.name
-            })
+                typed_text, current_pos, last_keypress_time = self.input_handler.process_key(
+                    key, rt, context
+                )
+
+    def run_trial(self, trial: Dict[str, Any]) -> bool:
+        """Run a complete trial including definition and input attempts."""
+        if trial['def_position'] == 'before':
+            self.show_text(trial['definition'], self.config.definition_display_time)
+
+        for attempt in range(1, self.config.max_attempts + 1):
+            if not self.run_single_input(trial['word'], attempt, trial):
+                return False
 
         if trial['def_position'] == 'after':
-            self.show_text(trial['definition'], 3)
+            self.show_text(trial['definition'], self.config.definition_display_time)
             
-        self.save_data(intermediate=True)
         return True
 
-    def run(self):
-        """
-        Run the complete experiment sequence.
-        
-        This is the main method that:
-        1. Shows instructions
-        2. Runs all trials
-        3. Saves data
-        4. Shows thank you message
-        5. Cleans up resources
-        """
+    def run(self) -> None:
+        """Run the complete experiment sequence."""
         try:
-            # Show instructions
+            logging.info(f"Starting experiment for participant: {self.participant_info.name}")
+            
             for instruction in self.instructions:
                 if not self.show_text(instruction):
+                    logging.info("Experiment aborted during instructions")
                     self.save_data(aborted=True)
                     return
 
-            # Run trials
             for trial in self.trials:
                 if not self.run_trial(trial):
+                    logging.info("Experiment aborted during trials")
                     self.save_data(aborted=True)
                     return
 
             self.save_data()
-            
-            # Show thank you message
             self.show_text(self.thank_you_text)
+            logging.info("Experiment completed successfully")
 
         except Exception as e:
-            print(f"Fehler während des Experiments: {e}")
+            logging.error(f"Error during experiment: {e}")
             self.save_data(aborted=True)
         
         finally:
